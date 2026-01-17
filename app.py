@@ -14,8 +14,7 @@ import io
 st.set_page_config(page_title="AI Interior Design Generator", layout="wide")
 
 # Gemini API key
-genai.configure(api_key="YOUR_GEMINI_API_KEY")
-
+genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 device = "cpu"
 
 # ---------------- CACHED MODEL LOADERS ----------------
@@ -29,12 +28,8 @@ def load_clip():
 
 @st.cache_resource
 def load_blip():
-    processor = BlipProcessor.from_pretrained(
-        "Salesforce/blip-image-captioning-base", use_fast=True
-    )
-    model = BlipForConditionalGeneration.from_pretrained(
-        "Salesforce/blip-image-captioning-base"
-    ).to(device)
+    processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base", use_fast=True)
+    model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-base").to(device)
     model.eval()
     return processor, model
 
@@ -49,17 +44,10 @@ def generate_caption(image, processor, model):
 
 
 def generate_gemini_image(prompt):
-    """
-    Uses Gemini Imagen model for image generation
-    """
+    """Uses Gemini Imagen model for image generation"""
     model = genai.GenerativeModel("imagen-3.0-generate-001")
 
-    response = model.generate_content(
-        prompt,
-        generation_config={
-            "temperature": 0.8
-        }
-    )
+    response = model.generate_content(prompt,generation_config={"temperature": 0.8 })
 
     # Extract image bytes
     image_bytes = response.candidates[0].content.parts[0].inline_data.data
@@ -75,10 +63,7 @@ def clip_similarity(image, text, clip_model, preprocess):
         image_features = clip_model.encode_image(image_input)
         text_features = clip_model.encode_text(text_input)
 
-    sim = cosine_similarity(
-        image_features.cpu().numpy(),
-        text_features.cpu().numpy()
-    )[0][0]
+    sim = cosine_similarity(image_features.cpu().numpy(),text_features.cpu().numpy())[0][0]
 
     return round(sim * 100, 2)
 
@@ -88,9 +73,7 @@ def clip_similarity(image, text, clip_model, preprocess):
 st.title("AI-Powered Interior Design Generator")
 st.caption("Multimodal AI using CLIP, BLIP & Gemini Imagen")
 
-uploaded_image = st.file_uploader(
-    "Upload a room image", type=["jpg", "png", "jpeg"]
-)
+uploaded_image = st.file_uploader("Upload a room image", type=["jpg", "png", "jpeg"])
 
 if uploaded_image:
     image = Image.open(uploaded_image).convert("RGB")
@@ -107,11 +90,7 @@ if uploaded_image:
     with st.spinner("Understanding the room..."):
         caption = generate_caption(image, processor, blip_model)
 
-    base_prompt = f"""
-    Design a modern interior for the following room:
-    {caption}
-    High quality, realistic lighting, interior design photography
-    """
+    base_prompt = f"""Design a modern interior for the following room:{caption}High quality, realistic lighting, interior design photography"""
 
     with st.spinner("Generating interior design with Gemini..."):
         gen_image = generate_gemini_image(base_prompt)
@@ -128,8 +107,7 @@ if uploaded_image:
     st.markdown("### Modify the Design")
     user_prompt = st.text_area(
         "Describe the changes you want",
-        placeholder="e.g. minimalist, warm lights, wooden furniture"
-    )
+        placeholder="e.g. minimalist, warm lights, wooden furniture")
 
     if st.button("Regenerate with My Prompt") and user_prompt.strip():
         final_prompt = base_prompt + "\nUser Preferences: " + user_prompt
@@ -140,17 +118,9 @@ if uploaded_image:
         st.subheader("Updated Interior Design")
         st.image(updated_image, use_column_width=True)
 
-        accuracy = clip_similarity(
-            image, user_prompt, clip_model, preprocess
-        )
+        accuracy = clip_similarity( image, user_prompt, clip_model, preprocess )
 
         st.markdown("### Prompt–Image Alignment Accuracy")
-        st.metric(
-            label="CLIP Similarity Score",
-            value=f"{accuracy}%"
-        )
+        st.metric(label="CLIP Similarity Score",value=f"{accuracy}%" )
 
-        st.info(
-            "This score reflects semantic alignment between "
-            "the user prompt and the original room image using CLIP."
-        )
+        st.info("This score reflects semantic alignment between ", "the user prompt and the original room image using CLIP.")
