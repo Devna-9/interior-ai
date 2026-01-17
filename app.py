@@ -7,36 +7,33 @@ import clip
 from transformers import BlipProcessor, BlipForConditionalGeneration
 from diffusers import StableDiffusionPipeline
 
-import google.generativeai as genai
-
 
 # ---------------- CONFIG ----------------
-st.set_page_config(page_title="AI Interior Design Generator", layout="wide")
+st.set_page_config( page_title="AI Interior Design Generator", layout="wide")
 
-genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 device = "cpu"
 
 
-# ---------------- LOAD MODELS ----------------
+# ---------------- CACHED MODEL LOADERS ----------------
 
 @st.cache_resource
 def load_clip():
-    model, preprocess = clip.load("ViT-B/32", device=device)
+    model, preprocess = clip.load( "ViT-B/32",   device=device  )
     model.eval()
     return model, preprocess
 
 
 @st.cache_resource
 def load_blip():
-    processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base",use_fast=True)
-    model = BlipForConditionalGeneration.from_pretrained( "Salesforce/blip-image-captioning-base").to(device)
+    processor = BlipProcessor.from_pretrained(  "Salesforce/blip-image-captioning-base",  use_fast=True   )
+    model = BlipForConditionalGeneration.from_pretrained( "Salesforce/blip-image-captioning-base" ).to(device)
     model.eval()
     return processor, model
 
 
 @st.cache_resource
 def load_sd():
-    pipe = StableDiffusionPipeline.from_pretrained( "runwayml/stable-diffusion-v1-5" )
+    pipe = StableDiffusionPipeline.from_pretrained("runwayml/stable-diffusion-v1-5" )
     pipe = pipe.to(device)
     return pipe
 
@@ -44,24 +41,30 @@ def load_sd():
 # ---------------- FUNCTIONS ----------------
 
 def generate_caption(image, processor, model):
-    inputs = processor(image, return_tensors="pt").to(device)
-    output = model.generate(**inputs, max_length=50)
-    return processor.decode(output[0], skip_special_tokens=True)
+    inputs = processor(image,  return_tensors="pt"  ).to(device)
+
+    with torch.no_grad():
+        output = model.generate(  **inputs,  max_length=50 )
+
+    return processor.decode(  output[0],      skip_special_tokens=True  )
 
 
 def generate_sd_image(prompt, pipe):
-    image = pipe(prompt).images[0]
+    with torch.no_grad():
+        image = pipe(prompt).images[0]
     return image
 
 
 def clip_similarity(image, text, clip_model, preprocess):
-    image_input = preprocess(image).unsqueeze(0)
-    text_input = clip.tokenize([text])
+    image_input = preprocess(  image ).unsqueeze(0)
 
-    image_features = clip_model.encode_image(image_input)
-    text_features = clip_model.encode_text(text_input)
+    text_input = clip.tokenize(   [text] )
 
-    similarity = cosine_similarity(image_features.detach().numpy(),text_features.detach().numpy())[0][0]
+    with torch.no_grad():
+        image_features = clip_model.encode_image( image_input  )
+        text_features = clip_model.encode_text( text_input   )
+
+    similarity = cosine_similarity(  image_features.cpu().numpy(),    text_features.cpu().numpy() )[0][0]
 
     return round(similarity * 100, 2)
 
@@ -69,13 +72,13 @@ def clip_similarity(image, text, clip_model, preprocess):
 # ---------------- UI ----------------
 
 st.title("AI-Powered Interior Design Generator")
-st.caption("CLIP + BLIP + Gemini + Stable Diffusion")
+st.caption("BLIP + CLIP + Stable Diffusion (Streamlit-safe)")
 
-uploaded_image = st.file_uploader("Upload a room image",type=["jpg", "jpeg", "png"])
+uploaded_image = st.file_uploader( "Upload a room image", type=["jpg", "jpeg", "png"])
 
-if uploaded_image:
+if uploaded_image is not None:
 
-    image = Image.open(uploaded_image).convert("RGB")
+    image = Image.open(uploaded_image ).convert("RGB")
 
     clip_model, preprocess = load_clip()
     processor, blip_model = load_blip()
@@ -84,28 +87,43 @@ if uploaded_image:
     col1, col2 = st.columns(2)
 
     with col1:
-        st.image(image, caption="Original Room")
+        st.subheader("Original Room Image")
+        st.image( image, use_column_width=True )
 
-    caption = generate_caption(image, processor, blip_model)
+    with st.spinner("Understanding the room..."):
+        caption = generate_caption( image,  processor,    blip_model)
 
-    base_prompt = (f"Modern interior design. {caption}. " f"High-quality interior photography, realistic lighting." )
+    base_prompt = ( f"Modern interior design. {caption}. "   f"High-quality interior photography, realistic lighting." )
 
-    generated_image = generate_sd_image(base_prompt, sd_pipe)
+    with st.spinner("Generating interior design..."):
+        generated_image = generate_sd_image(    base_prompt,    sd_pipe )
 
     with col2:
-        st.image(generated_image, caption="AI Generated Design")
+        st.subheader("AI Generated Interior Design")
+        st.image( generated_image, use_column_width=True      )
 
-    st.write("### Room Understanding")
+    st.markdown("### Room Understanding")
     st.write(caption)
 
-    user_prompt = st.text_area("Modify the design")
+    # ---------------- PROMPT REFINEMENT ----------------
 
-    if st.button("Regenerate") and user_prompt:
-        final_prompt = base_prompt + " " + user_prompt
-        updated_image = generate_sd_image(final_prompt, sd_pipe)
+    st.markdown("### Modify the Design")
 
-        st.image(updated_image, caption="Updated Design")
+    user_prompt = st.text_area(  "Describe the changes you want",  placeholder="e.g. minimalist, warm lights, wooden furniture" )
 
-        score = clip_similarity(    image, user_prompt, clip_model, preprocess)
+    if st.button("Regenerate with My Prompt") and user_prompt.strip():
 
-        st.metric("CLIP Similarity", f"{score}%")
+        final_prompt = ( base_prompt      + " "      + user_prompt  )
+
+        with st.spinner("Regenerating design..."):
+            updated_image = generate_sd_image(  final_prompt,sd_pipe)
+
+        st.subheader("Updated Interior Design")
+        st.image(   updated_image, use_column_width=True )
+
+        accuracy = clip_similarity(image,         user_prompt,         clip_model,        preprocess  )
+
+        st.markdown("### Prompt–Image Alignment Accuracy")
+        st.metric(    label="CLIP Similarity Score",   value=f"{accuracy}%" )
+
+        st.info("This score reflects semantic alignment between "        "the user prompt and the original room image using CLIP."   )
