@@ -5,5 +5,7 @@ numpy
 pillow
 scikit-learn
 transformers
-google-generativeai
+diffusers
+accelerate
 git+https://github.com/openai/CLIP.git
+google-generativeai
