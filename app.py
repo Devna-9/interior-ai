@@ -28,7 +28,7 @@ def load_clip():
 
 @st.cache_resource
 def load_blip():
-    processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
+    processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base",use_fast=False)
     model = BlipForConditionalGeneration.from_pretrained( "Salesforce/blip-image-captioning-base").to(device)
     model.eval()
     return processor, model
