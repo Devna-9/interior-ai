@@ -1,6 +1,4 @@
 import os
-print(os.getenv("STABILITY_API_KEY"))
-
 import streamlit as st
 import torch
 from PIL import Image
@@ -17,9 +15,7 @@ from io import BytesIO
 # ---------------- CONFIG ----------------
 st.set_page_config(page_title="AI Interior Design Generator", layout="wide")
 
-import os
-STABILITY_API_KEY = os.getenv("STABILITY_API_KEY")
-# optional
+STABILITY_API_KEY = os.getenv("STABILITY_API_KEY")  # set via env variable
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 # ---------------- LOAD MODELS ----------------
@@ -63,7 +59,11 @@ def generate_design(description, style):
     return tokenizer.decode(outputs[0], skip_special_tokens=True)
 
 def generate_image(prompt):
-    url = "https://api.stability.ai/v1/generation/stable-diffusion-v1-6/text-to-image"
+    if not STABILITY_API_KEY:
+        st.warning("Stability API key not set. Image generation skipped.")
+        return None
+
+    url = "https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image"
     headers = {
         "Authorization": f"Bearer {STABILITY_API_KEY}",
         "Content-Type": "application/json",
@@ -73,15 +73,14 @@ def generate_image(prompt):
     payload = {
         "text_prompts": [{"text": prompt}],
         "cfg_scale": 7,
-        "height": 512,
-        "width": 512,
+        "height": 1024,
+        "width": 1024,
         "samples": 1,
         "steps": 30
     }
 
     response = requests.post(url, headers=headers, json=payload)
 
-    # ---------- SAFE HANDLING ----------
     if response.status_code != 200:
         st.error(f"Stability API Error {response.status_code}")
         try:
@@ -123,19 +122,16 @@ if uploaded:
     st.subheader("🧠 Room Analysis")
     st.write(description)
 
-    with st.spinner("Generating design ideas..."):
+    with st.spinner("Generating design suggestions..."):
         ideas = generate_design(description, style)
 
     st.subheader("🎨 Interior Design Suggestions")
     st.write(ideas)
 
-    if STABILITY_API_KEY:
-        if st.button("Generate AI Redesigned Room"):
-            with st.spinner("Generating image..."):
-                img_prompt = f"{style} interior design, {description}"
-                result_img = generate_image(img_prompt)
+    if st.button("Generate AI Redesigned Room (Optional)"):
+        with st.spinner("Generating image..."):
+            img_prompt = f"{style} interior design, {description}"
+            result_img = generate_image(img_prompt)
 
-                if result_img:
-                    st.image(result_img, caption="AI Generated Design")
-    else:
-        st.info("Stability API key not provided. Image generation disabled.")
+            if result_img:
+                st.image(result_img, caption="AI Generated Design")
