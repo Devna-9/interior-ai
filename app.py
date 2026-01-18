@@ -14,7 +14,9 @@ from io import BytesIO
 # ---------------- CONFIG ----------------
 st.set_page_config(page_title="AI Interior Design Generator", layout="wide")
 
-STABILITY_API_KEY = "YOUR_STABILITY_API_KEY"  # optional
+import os
+STABILITY_API_KEY = os.getenv("STABILITY_API_KEY")
+# optional
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 # ---------------- LOAD MODELS ----------------
