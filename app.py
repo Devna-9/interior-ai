@@ -58,4 +58,51 @@ def generate_design(description, style):
     outputs = llm.generate(**inputs, max_length=250)
     return tokenizer.decode(outputs[0], skip_special_tokens=True)
 
-def generate
+def generate_image(prompt):
+    url = "https://api.stability.ai/v1/generation/stable-diffusion-v1-6/text-to-image"
+    headers = {
+        "Authorization": f"Bearer {STABILITY_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "text_prompts": [{"text": prompt}],
+        "cfg_scale": 7,
+        "height": 512,
+        "width": 512,
+        "samples": 1,
+        "steps": 30
+    }
+    response = requests.post(url, headers=headers, json=payload)
+    img_base64 = response.json()["artifacts"][0]["base64"]
+    return Image.open(BytesIO(base64.b64decode(img_base64)))
+
+# ---------------- UI ----------------
+st.title("🏠 AI-Powered Interior Design Generator")
+
+uploaded = st.file_uploader("Upload a room image", type=["jpg", "png", "jpeg"])
+style = st.selectbox(
+    "Select Design Style",
+    ["Minimal", "Scandinavian", "Modern", "Luxury"]
+)
+
+if uploaded:
+    image = Image.open(uploaded)
+    st.image(image, caption="Uploaded Room", use_column_width=True)
+
+    with st.spinner("Analyzing room..."):
+        description = analyze_room(image)
+
+    st.subheader("🧠 Room Analysis")
+    st.write(description)
+
+    with st.spinner("Generating design ideas..."):
+        ideas = generate_design(description, style)
+
+    st.subheader("🎨 Design Suggestions")
+    st.write(ideas)
+
+    if STABILITY_API_KEY and st.button("Generate AI Redesigned Room"):
+        with st.spinner("Generating image..."):
+            img_prompt = f"{style} interior design, {description}"
+            result_img = generate_image(img_prompt)
+            st.image(result_img, caption="AI Generated Design")
