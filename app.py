@@ -1,12 +1,7 @@
 import streamlit as st
 import torch
 from PIL import Image
-from transformers import (
-    BlipProcessor,
-    BlipForConditionalGeneration,
-    AutoTokenizer,
-    AutoModelForSeq2SeqLM
-)
+from transformers import ( BlipProcessor, BlipForConditionalGeneration, AutoTokenizer, AutoModelForSeq2SeqLM)
 import requests
 import base64
 from io import BytesIO
@@ -21,17 +16,11 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 # ---------------- LOAD MODELS ----------------
 @st.cache_resource
 def load_models():
-    blip_processor = BlipProcessor.from_pretrained(
-        "Salesforce/blip-image-captioning-base"
-    )
-    blip_model = BlipForConditionalGeneration.from_pretrained(
-        "Salesforce/blip-image-captioning-base"
-    ).to(device)
+    blip_processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base" )
+    blip_model = BlipForConditionalGeneration.from_pretrained(  "Salesforce/blip-image-captioning-base" ).to(device)
 
     tokenizer = AutoTokenizer.from_pretrained("google/flan-t5-base")
-    llm = AutoModelForSeq2SeqLM.from_pretrained(
-        "google/flan-t5-base"
-    ).to(device)
+    llm = AutoModelForSeq2SeqLM.from_pretrained("google/flan-t5-base" ).to(device)
 
     return blip_processor, blip_model, tokenizer, llm
 
@@ -60,18 +49,8 @@ def generate_design(description, style):
 
 def generate_image(prompt):
     url = "https://api.stability.ai/v1/generation/stable-diffusion-v1-6/text-to-image"
-    headers = {
-        "Authorization": f"Bearer {STABILITY_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "text_prompts": [{"text": prompt}],
-        "cfg_scale": 7,
-        "height": 512,
-        "width": 512,
-        "samples": 1,
-        "steps": 30
-    }
+    headers = {"Authorization": f"Bearer {STABILITY_API_KEY}","Content-Type": "application/json" }
+    payload = {  "text_prompts": [{"text": prompt}],  "cfg_scale": 7,  "height": 512,  "width": 512,  "samples": 1,  "steps": 30 }
     response = requests.post(url, headers=headers, json=payload)
     img_base64 = response.json()["artifacts"][0]["base64"]
     return Image.open(BytesIO(base64.b64decode(img_base64)))
@@ -80,10 +59,7 @@ def generate_image(prompt):
 st.title("🏠 AI-Powered Interior Design Generator")
 
 uploaded = st.file_uploader("Upload a room image", type=["jpg", "png", "jpeg"])
-style = st.selectbox(
-    "Select Design Style",
-    ["Minimal", "Scandinavian", "Modern", "Luxury"]
-)
+style = st.selectbox( "Select Design Style", ["Minimal", "Scandinavian", "Modern", "Luxury"])
 
 if uploaded:
     image = Image.open(uploaded)
