@@ -1,3 +1,6 @@
+import os
+print(os.getenv("STABILITY_API_KEY"))
+
 import streamlit as st
 import torch
 from PIL import Image
